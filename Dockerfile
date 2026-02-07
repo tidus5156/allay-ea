@@ -7,7 +7,7 @@ ENV NODE_VERSION=22.13.1
 RUN ARCH="$(dpkg --print-architecture)" \
     && case "${ARCH}" in \
          amd64) NODE_ARCH="x64" ;; \
-         arm64) NODE_ARCH="arm64" ;; 
+         arm64) NODE_ARCH="arm64" ;;  \
          *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
        esac \
     && apt-get update && apt-get install -y xz-utils ca-certificates rsync \

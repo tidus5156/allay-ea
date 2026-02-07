@@ -249,12 +249,12 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
         enabled: true,
         dmPolicy: dmPolicy,
     };
-            // Configure webhook mode if WORKER_URL is available
-                    if (process.env.WORKER_URL) {
-                                config.channels.telegram.webhookUrl = process.env.WORKER_URL + '/telegram-webhook';
-                                            config.channels.telegram.webhookPath = '/telegram-webhook';
-                                            config.channels.telegram.webhookSecret = require('crypto').createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN || '').digest('hex').substring(0, 32);
-                                                        console.log('Telegram webhook URL set to:', config.channels.telegram.webhookUrl);
+//          // Configure webhook mode if WORKER_URL is available
+//                if (process.env.WORKER_URL) {
+//                          config.channels.telegram.webhookUrl = process.env.WORKER_URL + '/telegram-webhook';
+//                                    config.channels.telegram.webhookPath = '/telegram-webhook';
+//                                  config.channels.telegram.webhookSecret = require('crypto').createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN || '').digest('hex').substring(0, 32);
+//                                            console.log('Telegram webhook URL set to:', config.channels.telegram.webhookUrl);
                                                                 }
     if (process.env.TELEGRAM_DM_ALLOW_FROM) {
         config.channels.telegram.allowFrom = process.env.TELEGRAM_DM_ALLOW_FROM.split(',');

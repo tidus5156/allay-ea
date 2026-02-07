@@ -255,7 +255,7 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
 //                                    config.channels.telegram.webhookPath = '/telegram-webhook';
 //                                  config.channels.telegram.webhookSecret = require('crypto').createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN || '').digest('hex').substring(0, 32);
 //                                            console.log('Telegram webhook URL set to:', config.channels.telegram.webhookUrl);
-                                                                }
+                                                                    //              }
     if (process.env.TELEGRAM_DM_ALLOW_FROM) {
         config.channels.telegram.allowFrom = process.env.TELEGRAM_DM_ALLOW_FROM.split(',');
     } else if (dmPolicy === 'open') {

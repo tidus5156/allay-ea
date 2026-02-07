@@ -299,6 +299,10 @@ echo "Gateway will be available on port 18789"
 rm -f /tmp/openclaw-gateway.lock 2>/dev/null || true
 rm -f "$CONFIG_DIR/gateway.lock" 2>/dev/null || true
 
+# Run doctor to fix any config issues before starting gateway
+echo "Running openclaw doctor --fix..."
+openclaw doctor --fix 2>&1 || echo "Doctor completed (may have had warnings)"
+
 echo "Dev mode: ${OPENCLAW_DEV_MODE:-false}"
 
 if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then

@@ -193,11 +193,10 @@ config.gateway.trustedProxies = ['10.1.0.0'];
 
 // Gateway token: prefer GATEWAY_TOKEN (plaintext, available in container)
 // Fall back to OPENCLAW_GATEWAY_TOKEN (may be a secret, unavailable in container)
-const gwToken = process.env.GATEWAY_TOKEN || process.env.OPENCLAW_GATEWAY_TOKEN;
-if (gwToken) {
-    config.gateway.auth = config.gateway.auth || {};
-    config.gateway.auth.token = gwToken;
-}
+// No gateway token auth — the Moltworker proxy handles external auth.
+// Setting a token here would break the dashboard WebSocket connection.
+// Remove any stale auth config from R2 backups.
+delete config.gateway.auth;
 
 if (process.env.DEV_MODE === 'true') {
     config.gateway.controlUi = config.gateway.controlUi || {};
@@ -324,12 +323,9 @@ echo "Dev mode: ${DEV_MODE:-false}"
 # Check for gateway token in multiple env vars:
 # 1. GATEWAY_TOKEN (plaintext, preferred - available inside container)
 # 2. OPENCLAW_GATEWAY_TOKEN (legacy, may be a secret and unavailable in container)
-RESOLVED_TOKEN="${GATEWAY_TOKEN:-$OPENCLAW_GATEWAY_TOKEN}"
-
-if [ -n "$RESOLVED_TOKEN" ]; then
-    echo "Starting gateway with token auth..."
-    exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan --token "$RESOLVED_TOKEN"
-else
-    echo "Starting gateway with device pairing (no token)..."
-    exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan
+# Start gateway WITHOUT token auth.
+# The Moltworker proxy handles external authentication at the Worker level.
+# Running without --token allows the built-in dashboard to connect via WebSocket.
+echo "Starting gateway without token auth (Moltworker handles external auth)..."
+exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan
 fi

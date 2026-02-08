@@ -67,7 +67,7 @@ if [ -f "$BACKUP_DIR/openclaw/openclaw.json" ]; then
         echo "Restored config from R2 backup"
     fi
 elif [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
-    # Legacy backup format Ã¢ÂÂ migrate .clawdbot data into .openclaw
+    # Legacy backup format — migrate .clawdbot data into .openclaw
     if should_restore_from_r2; then
         echo "Restoring from legacy R2 backup at $BACKUP_DIR/clawdbot..."
         cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
@@ -106,18 +106,6 @@ if [ -d "$BACKUP_DIR/workspace" ] && [ "$(ls -A $BACKUP_DIR/workspace 2>/dev/nul
         echo "Restored workspace from R2 backup"
     fi
 fi
-
-# Ensure bundled identity files are present in workspace
-# These are baked into the Docker image and serve as defaults.
-# R2-restored versions (if any) take precedence since they were
-# copied above and would overwrite these only if R2 had them.
-if [ ! -f "$WORKSPACE_DIR/IDENTITY.md" ] && [ -f "$WORKSPACE_DIR/IDENTITY.md.bundled" ] 2>/dev/null; then
-    cp "$WORKSPACE_DIR/IDENTITY.md.bundled" "$WORKSPACE_DIR/IDENTITY.md"
-fi
-# The Dockerfile COPYs IDENTITY.md and BOOTSTRAP.md directly into /root/clawd.
-# If R2 restore didn't overwrite them, the bundled versions are already in place.
-echo "Workspace identity files:"
-ls -la "$WORKSPACE_DIR/IDENTITY.md" "$WORKSPACE_DIR/BOOTSTRAP.md" 2>/dev/null || echo "  (none found)"
 
 # Restore skills from R2 backup if available (only if R2 is newer)
 SKILLS_DIR="/root/clawd/skills"
@@ -170,7 +158,7 @@ fi
 # - Gateway token auth
 # - Trusted proxies for sandbox networking
 # - Base URL override for legacy AI Gateway path
-node << 'EOFPATCH'
+node <<'EOFPATCH'
 const fs = require('fs');
 
 const configPath = '/root/.openclaw/openclaw.json';
@@ -191,29 +179,17 @@ config.gateway.port = 18789;
 config.gateway.mode = 'local';
 config.gateway.trustedProxies = ['10.1.0.0'];
 
-// Gateway token: prefer GATEWAY_TOKEN (plaintext, available in container)
-// Fall back to OPENCLAW_GATEWAY_TOKEN (may be a secret, unavailable in container)
-// No gateway token auth — the Moltworker proxy handles external auth.
-// Setting a token here would break the dashboard WebSocket connection.
-// Remove any stale auth config from R2 backups.
-delete config.gateway.auth;
+if (process.env.OPENCLAW_GATEWAY_TOKEN) {
+    config.gateway.auth = config.gateway.auth || {};
+    config.gateway.auth.token = process.env.OPENCLAW_GATEWAY_TOKEN;
+}
 
-if (process.env.DEV_MODE === 'true') {
+if (process.env.OPENCLAW_DEV_MODE === 'true') {
     config.gateway.controlUi = config.gateway.controlUi || {};
     config.gateway.controlUi.allowInsecureAuth = true;
 }
 
-// Legacy AI Gateway base URL override:
-// ANTHROPIC_BASE_URL is picked up natively by the Anthropic SDK,
-// so we don't need to patch the provider config. Writing a provider
-// entry without a models array breaks OpenClaw's config validation.
-
 // AI Gateway model override (CF_AI_GATEWAY_MODEL=provider/model-id)
-// Adds a provider entry for any AI Gateway provider and sets it as default model.
-// Examples:
-//   workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast
-//   openai/gpt-4o
-//   anthropic/claude-sonnet-4-5
 if (process.env.CF_AI_GATEWAY_MODEL) {
     const raw = process.env.CF_AI_GATEWAY_MODEL;
     const slashIdx = raw.indexOf('/');
@@ -254,8 +230,6 @@ if (process.env.CF_AI_GATEWAY_MODEL) {
 }
 
 // Telegram configuration
-// Overwrite entire channel object to drop stale keys from old R2 backups
-// that would fail OpenClaw's strict config validation (see #47)
 if (process.env.TELEGRAM_BOT_TOKEN) {
     const dmPolicy = process.env.TELEGRAM_DM_POLICY || 'pairing';
     config.channels.telegram = {
@@ -263,13 +237,6 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
         enabled: true,
         dmPolicy: dmPolicy,
     };
-//          // Configure webhook mode if WORKER_URL is available
-//                if (process.env.WORKER_URL) {
-//                          config.channels.telegram.webhookUrl = process.env.WORKER_URL + '/telegram-webhook';
-//                                    config.channels.telegram.webhookPath = '/telegram-webhook';
-//                                  config.channels.telegram.webhookSecret = require('crypto').createHash('sha256').update(process.env.TELEGRAM_BOT_TOKEN || '').digest('hex').substring(0, 32);
-//                                            console.log('Telegram webhook URL set to:', config.channels.telegram.webhookUrl);
-                                                                    //              }
     if (process.env.TELEGRAM_DM_ALLOW_FROM) {
         config.channels.telegram.allowFrom = process.env.TELEGRAM_DM_ALLOW_FROM.split(',');
     } else if (dmPolicy === 'open') {
@@ -278,7 +245,6 @@ if (process.env.TELEGRAM_BOT_TOKEN) {
 }
 
 // Discord configuration
-// Discord uses a nested dm object: dm.policy, dm.allowFrom (per DiscordDmConfig)
 if (process.env.DISCORD_BOT_TOKEN) {
     const dmPolicy = process.env.DISCORD_DM_POLICY || 'pairing';
     const dm = { policy: dmPolicy };
@@ -314,14 +280,12 @@ echo "Gateway will be available on port 18789"
 rm -f /tmp/openclaw-gateway.lock 2>/dev/null || true
 rm -f "$CONFIG_DIR/gateway.lock" 2>/dev/null || true
 
-# Run doctor to fix any config issues before starting gateway
-echo "Running openclaw doctor --fix..."
-openclaw doctor --fix 2>&1 || echo "Doctor completed (may have had warnings)"
+echo "Dev mode: ${OPENCLAW_DEV_MODE:-false}"
 
-echo "Dev mode: ${DEV_MODE:-false}"
-
-# Start gateway WITHOUT token auth.
-# The Moltworker proxy handles external authentication at the Worker level.
-# Running without --token allows the built-in dashboard to connect via WebSocket.
-echo "Starting gateway without token auth (Moltworker handles external auth)..."
-exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan
+if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then
+    echo "Starting gateway with token auth..."
+    exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan --token "$OPENCLAW_GATEWAY_TOKEN"
+else
+    echo "Starting gateway with device pairing (no token)..."
+    exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan
+fi

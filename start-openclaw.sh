@@ -67,7 +67,7 @@ if [ -f "$BACKUP_DIR/openclaw/openclaw.json" ]; then
         echo "Restored config from R2 backup"
     fi
 elif [ -f "$BACKUP_DIR/clawdbot/clawdbot.json" ]; then
-    # Legacy backup format â migrate .clawdbot data into .openclaw
+    # Legacy backup format Ã¢ÂÂ migrate .clawdbot data into .openclaw
     if should_restore_from_r2; then
         echo "Restoring from legacy R2 backup at $BACKUP_DIR/clawdbot..."
         cp -a "$BACKUP_DIR/clawdbot/." "$CONFIG_DIR/"
@@ -106,6 +106,18 @@ if [ -d "$BACKUP_DIR/workspace" ] && [ "$(ls -A $BACKUP_DIR/workspace 2>/dev/nul
         echo "Restored workspace from R2 backup"
     fi
 fi
+
+# Ensure bundled identity files are present in workspace
+# These are baked into the Docker image and serve as defaults.
+# R2-restored versions (if any) take precedence since they were
+# copied above and would overwrite these only if R2 had them.
+if [ ! -f "$WORKSPACE_DIR/IDENTITY.md" ] && [ -f "$WORKSPACE_DIR/IDENTITY.md.bundled" ] 2>/dev/null; then
+    cp "$WORKSPACE_DIR/IDENTITY.md.bundled" "$WORKSPACE_DIR/IDENTITY.md"
+fi
+# The Dockerfile COPYs IDENTITY.md and BOOTSTRAP.md directly into /root/clawd.
+# If R2 restore didn't overwrite them, the bundled versions are already in place.
+echo "Workspace identity files:"
+ls -la "$WORKSPACE_DIR/IDENTITY.md" "$WORKSPACE_DIR/BOOTSTRAP.md" 2>/dev/null || echo "  (none found)"
 
 # Restore skills from R2 backup if available (only if R2 is newer)
 SKILLS_DIR="/root/clawd/skills"
@@ -179,12 +191,16 @@ config.gateway.port = 18789;
 config.gateway.mode = 'local';
 config.gateway.trustedProxies = ['10.1.0.0'];
 
-if (process.env.OPENCLAW_GATEWAY_TOKEN) {
+// Gateway token: prefer GATEWAY_TOKEN (plaintext, available in container)
+// Fall back to OPENCLAW_GATEWAY_TOKEN (may be a secret, unavailable in container)
+const gwToken = process.env.GATEWAY_TOKEN || process.env.OPENCLAW_GATEWAY_TOKEN;
+if (gwToken) {
     config.gateway.auth = config.gateway.auth || {};
-    config.gateway.auth.token = process.env.OPENCLAW_GATEWAY_TOKEN;
+    config.gateway.auth.mode = 'token';
+    config.gateway.auth.token = gwToken;
 }
 
-if (process.env.OPENCLAW_DEV_MODE === 'true') {
+if (process.env.DEV_MODE === 'true') {
     config.gateway.controlUi = config.gateway.controlUi || {};
     config.gateway.controlUi.allowInsecureAuth = true;
 }
@@ -304,11 +320,16 @@ rm -f "$CONFIG_DIR/gateway.lock" 2>/dev/null || true
 echo "Running openclaw doctor --fix..."
 openclaw doctor --fix 2>&1 || echo "Doctor completed (may have had warnings)"
 
-echo "Dev mode: ${OPENCLAW_DEV_MODE:-false}"
+echo "Dev mode: ${DEV_MODE:-false}"
 
-if [ -n "$OPENCLAW_GATEWAY_TOKEN" ]; then
+# Check for gateway token in multiple env vars:
+# 1. GATEWAY_TOKEN (plaintext, preferred - available inside container)
+# 2. OPENCLAW_GATEWAY_TOKEN (legacy, may be a secret and unavailable in container)
+RESOLVED_TOKEN="${GATEWAY_TOKEN:-$OPENCLAW_GATEWAY_TOKEN}"
+
+if [ -n "$RESOLVED_TOKEN" ]; then
     echo "Starting gateway with token auth..."
-    exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan --token "$OPENCLAW_GATEWAY_TOKEN"
+    exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan --token "$RESOLVED_TOKEN"
 else
     echo "Starting gateway with device pairing (no token)..."
     exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan

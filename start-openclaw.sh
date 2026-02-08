@@ -320,12 +320,8 @@ openclaw doctor --fix 2>&1 || echo "Doctor completed (may have had warnings)"
 
 echo "Dev mode: ${DEV_MODE:-false}"
 
-# Check for gateway token in multiple env vars:
-# 1. GATEWAY_TOKEN (plaintext, preferred - available inside container)
-# 2. OPENCLAW_GATEWAY_TOKEN (legacy, may be a secret and unavailable in container)
 # Start gateway WITHOUT token auth.
 # The Moltworker proxy handles external authentication at the Worker level.
 # Running without --token allows the built-in dashboard to connect via WebSocket.
 echo "Starting gateway without token auth (Moltworker handles external auth)..."
 exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan
-fi

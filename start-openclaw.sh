@@ -196,7 +196,6 @@ config.gateway.trustedProxies = ['10.1.0.0'];
 const gwToken = process.env.GATEWAY_TOKEN || process.env.OPENCLAW_GATEWAY_TOKEN;
 if (gwToken) {
     config.gateway.auth = config.gateway.auth || {};
-    config.gateway.auth.mode = 'token';
     config.gateway.auth.token = gwToken;
 }
 
@@ -334,4 +333,3 @@ else
     echo "Starting gateway with device pairing (no token)..."
     exec openclaw gateway --port 18789 --verbose --allow-unconfigured --bind lan
 fi
-

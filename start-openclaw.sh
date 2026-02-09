@@ -267,21 +267,6 @@ if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_APP_TOKEN) {
     };
 }
 
-
-// Auto-compaction to prevent unbounded context growth
-// This ensures conversations don't balloon to fill the entire context window
-config.agents = config.agents || {};
-config.agents.defaults = config.agents.defaults || {};
-config.agents.defaults.compaction = config.agents.defaults.compaction || {};
-config.agents.defaults.compaction.enabled = true;
-config.agents.defaults.compaction.reserveTokens = 32768;
-config.agents.defaults.compaction.keepRecentTokens = 20000;
-config.agents.defaults.compaction.memoryFlush = config.agents.defaults.compaction.memoryFlush || {};
-config.agents.defaults.compaction.memoryFlush.enabled = true;
-
-// Set reasonable session token limit (default 200k is too high for most use cases)
-config.agents.defaults.contextWindow = config.agents.defaults.contextWindow || 131072;
-
 fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
 console.log('Configuration patched successfully');
 EOFPATCH

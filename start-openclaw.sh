@@ -233,6 +233,10 @@ if (process.env.CF_AI_GATEWAY_MODEL) {
 if (process.env.TELEGRAM_BOT_TOKEN) {
         const dmPolicy = process.env.TELEGRAM_DM_POLICY || 'pairing';
 
+        // Remove any stale nested dm object from previous config versions
+        if (config.channels && config.channels.telegram) {
+            delete config.channels.telegram.dm;
+        }
         config.channels.telegram = {
             botToken: process.env.TELEGRAM_BOT_TOKEN,
             enabled: true,
@@ -275,6 +279,10 @@ EOFPATCH
 # ============================================================
 # START GATEWAY
 # ============================================================
+# Run doctor --fix to clean up any invalid config keys
+echo "Running openclaw doctor --fix..."
+openclaw doctor --fix 2>&1 || true
+
 echo "Starting OpenClaw Gateway..."
 echo "Gateway will be available on port 18789"
 

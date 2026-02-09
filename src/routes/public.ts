@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../types';
 import { MOLTBOT_PORT } from '../config';
-import { findExistingMoltbotProcess } from '../gateway';
+import { ensureMoltbotGateway, findExistingMoltbotProcess } from '../gateway';
 
 /**
  * Public routes - NO Cloudflare Access authentication required
  *
  * These routes are mounted BEFORE the auth middleware is applied.
- * Includes: health checks, static assets, and public API endpoints.
+ * Includes: health checks, static assets, webhook endpoints, and public API endpoints.
  */
 const publicRoutes = new Hono<AppEnv>();
 
@@ -65,6 +65,31 @@ publicRoutes.get('/_admin/assets/*', async (c) => {
   const assetPath = url.pathname.replace('/_admin/assets/', '/assets/');
   const assetUrl = new URL(assetPath, url.origin);
   return c.env.ASSETS.fetch(new Request(assetUrl.toString(), c.req.raw));
+});
+
+// POST /telegram/webhook - Telegram bot webhook (no auth required)
+// Telegram sends webhook updates here; must be publicly accessible.
+// Proxies the request to the OpenClaw gateway running in the container.
+publicRoutes.post('/telegram/webhook', async (c) => {
+  const sandbox = c.get('sandbox');
+
+  try {
+    // Ensure the gateway is running before proxying
+    await ensureMoltbotGateway(sandbox, c.env);
+  } catch (error) {
+    console.error('[TELEGRAM] Failed to start gateway:', error);
+    return c.json({ error: 'Gateway unavailable' }, 503);
+  }
+
+  console.log('[TELEGRAM] Proxying webhook to gateway');
+  const httpResponse = await sandbox.containerFetch(c.req.raw, MOLTBOT_PORT);
+  console.log('[TELEGRAM] Response status:', httpResponse.status);
+
+  return new Response(httpResponse.body, {
+    status: httpResponse.status,
+    statusText: httpResponse.statusText,
+    headers: httpResponse.headers,
+  });
 });
 
 export { publicRoutes };
